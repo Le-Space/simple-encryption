@@ -10,7 +10,7 @@ import * as Block from 'multiformats/block'
 import * as dagCbor from '@ipld/dag-cbor'
 import { sha256 } from 'multiformats/hashes/sha2'
 
-import SimpleEncryption from '../src/index.js'
+import SimpleEncryption, { isDatabaseEncrypted } from '../src/index.js'
 
 const codec = dagCbor
 const hasher = sha256
@@ -371,6 +371,133 @@ describe('Encryption with OrbitDB', function () {
       notEqual(error, undefined)
       strictEqual(error.message.startsWith('CBOR decode error'), true)
       strictEqual(decodedBytes.value.constructor, Uint8Array)
+    })
+  })
+
+  describe('Opening encrypted database without encryption options', async () => {
+    afterEach(async () => {
+      if (db1) {
+        await db1.drop()
+        await db1.close()
+      }
+      if (db2) {
+        await db2.drop()
+        await db2.close()
+      }
+    })
+
+    it('cannot read encrypted data when opening database without encryption options', async () => {
+      // Create an encrypted database with data encryption
+      const encryption = await SimpleEncryption({ password: 'test-password' })
+      db1 = await orbitdb1.open('encrypted-test', { encryption: { data: encryption } })
+      
+      await db1.add('test record 1')
+      await db1.add('test record 2')
+      
+      // Verify we can read with encryption
+      strictEqual((await db1.all()).length, 2)
+      strictEqual((await db1.all())[0].value, 'test record 1')
+      
+      const dbAddress = db1.address
+      
+      // Close the encrypted database
+      await db1.close()
+      db1 = null
+      
+      // Open the same database WITHOUT encryption options
+      db2 = await orbitdb1.open(dbAddress, {})
+      
+      // Set up error listener (to check if errors are emitted)
+      let errorEmitted = false
+      let emittedError
+      const onError = async (err) => {
+        errorEmitted = true
+        emittedError = err
+      }
+      db2.events.on('error', onError)
+      
+      // Try to read the data
+      const result = await db2.all()
+      
+      // Wait a bit to see if error event fires
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Verify behavior:
+      // 1. Entries exist (hashes are readable) - proves database has data
+      // 2. But values are undefined - proves encrypted data cannot be read
+      strictEqual(result.length, 2, 'Should see entries exist (hashes are readable)')
+      strictEqual(result[0].hash !== undefined, true, 'Entry should have a hash')
+      strictEqual(result[0].value, undefined, 'Encrypted value should be undefined without encryption key')
+      strictEqual(result[1].value, undefined, 'Encrypted value should be undefined without encryption key')
+      
+      // Note: Error events may or may not be emitted depending on OrbitDB implementation
+      // The key proof is that values are undefined - encrypted data cannot be read
+      
+      // This proves:
+      // 1. Database has entries (not empty) - can distinguish from empty DB
+      // 2. But encrypted data cannot be read without encryption key (values are undefined)
+      // This is useful for detection in simple-todo app to show password modal
+    })
+
+    it('isDatabaseEncrypted detects encrypted database correctly', async () => {
+      // Test 1: Encrypted database should return true
+      const encryption = await SimpleEncryption({ password: 'test-password' })
+      db1 = await orbitdb1.open('encrypted-detection-test', { encryption: { data: encryption } })
+      
+      await db1.add('encrypted record 1')
+      await db1.add('encrypted record 2')
+      
+      strictEqual((await db1.all()).length, 2)
+      
+      const encryptedAddress = db1.address
+      await db1.close()
+      db1 = null
+      
+      // Open encrypted database without encryption
+      db2 = await orbitdb1.open(encryptedAddress, {})
+      
+      // Should detect as encrypted
+      const isEncrypted1 = await isDatabaseEncrypted(db2)
+      strictEqual(isEncrypted1, true, 'Encrypted database should be detected as encrypted')
+      
+      await db2.close()
+      db2 = null
+      
+      // Test 2: Unencrypted database should return false
+      db1 = await orbitdb1.open('unencrypted-detection-test', {})
+      await db1.add('unencrypted record 1')
+      await db1.add('unencrypted record 2')
+      
+      strictEqual((await db1.all()).length, 2)
+      
+      const unencryptedAddress = db1.address
+      await db1.close()
+      db1 = null
+      
+      // Open unencrypted database without encryption
+      db2 = await orbitdb1.open(unencryptedAddress, {})
+      
+      // Should detect as not encrypted
+      const isEncrypted2 = await isDatabaseEncrypted(db2)
+      strictEqual(isEncrypted2, false, 'Unencrypted database should be detected as not encrypted')
+      
+      await db2.close()
+      db2 = null
+      
+      // Test 3: Empty database should return false
+      db1 = await orbitdb1.open('empty-detection-test', {})
+      // Don't add any records
+      
+      const emptyAddress = db1.address
+      await db1.close()
+      db1 = null
+      
+      // Open empty database
+      db2 = await orbitdb1.open(emptyAddress, {})
+      
+      // Should detect as not encrypted (empty databases can't be determined)
+      const isEncrypted3 = await isDatabaseEncrypted(db2)
+      strictEqual(isEncrypted3, false, 'Empty database should return false (cannot determine)')
     })
   })
 })
