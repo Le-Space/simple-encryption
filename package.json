@@ -1,5 +1,5 @@
 {
-  "name": "@orbitdb/simple-encryption",
+  "name": "@le-space/orbitdb-simple-encryption",
   "version": "0.0.2",
   "description": "A simple password encryption module that encrypts data using AES-GCM PBKDF2.",
   "type": "module",
@@ -18,7 +18,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/orbitdb/simple-encryption.git"
+    "url": "git+https://github.com/Le-Space/simple-encryption.git"
   },
   "keywords": [
     "orbitdb",
@@ -28,9 +28,9 @@
     "encryption"
   ],
   "bugs": {
-    "url": "https://github.com/orbitdb/simple-encryption/issues"
+    "url": "https://github.com/Le-Space/simple-encryption/issues"
   },
-  "homepage": "https://github.com/orbitdb/simple-encryption#readme",
+  "homepage": "https://github.com/Le-Space/simple-encryption#readme",
   "engines": {
     "node": ">=20.0.0"
   },

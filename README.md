@@ -6,7 +6,8 @@
 
 [![Matrix](https://img.shields.io/matrix/orbit-db:matrix.org?label=chat%20on%20matrix)](https://app.element.io/#/room/#orbit-db:matrix.org) [![npm (scoped)](https://img.shields.io/npm/v/%40orbitdb/simple-encryption)](https://www.npmjs.com/package/%40orbitdb/simple-encryption) [![node-current (scoped)](https://img.shields.io/node/v/%40orbitdb/simple-encryption)](https://www.npmjs.com/package/@orbitdb/simple-encryption)
 
-A simple password encryption module that encrypts data using AES-GCM PBKDF2.
+Fork of `@orbitdb/simple-encryption` that adds experimental encrypted-database detection via `isDatabaseEncrypted`.  
+This fork is intended as a temporary workaround and may be removed once [orbitdb/simple-encryption#1](https://github.com/orbitdb/simple-encryption/pull/1) is merged or a better upstream solution is available.
 
 **NOTE** This encryption module is not audited in any way for security and is intended for demonstration purposes only.
 
@@ -15,7 +16,7 @@ A simple password encryption module that encrypts data using AES-GCM PBKDF2.
 This project uses [npm](http://npmjs.com/) and [nodejs](https://nodejs.org/).
 
 ```sh
-npm i @orbitdb/simple-encryption
+npm i @le-space/orbitdb-simple-encryption
 ```
 
 ## Usage
@@ -24,7 +25,7 @@ To implement encryption within your database, create an encryption object and pa
 
 ```js
 import { createOrbitDB } from '@orbitdb/core'
-import { SimpleEncryption } from '@orbitdb/simple-encryption'
+import SimpleEncryption from '@le-space/orbitdb-simple-encryption'
 
 
 // Instantiate encryption for either data, replication or both.
@@ -41,7 +42,7 @@ When replicating a database, initiate the same encryption configuration and pass
 
 ```js
 import { createOrbitDB } from '@orbitdb/core'
-import { SimpleEncryption } from '@orbitdb/simple-encryption' 
+import SimpleEncryption from '@le-space/orbitdb-simple-encryption' 
 
 
 // Instantiate encryption for either data, replication or both.
@@ -65,7 +66,7 @@ The `isDatabaseEncrypted()` function helps detect if a database is encrypted whe
 - **Replication and/or data encryption**: `db.all()` throws a `TypeError` such as `Cannot read properties of undefined (reading 'value')` because OrbitDB cannot decrypt the underlying log entries.
 
 ```js
-import SimpleEncryption, { isDatabaseEncrypted } from '@orbitdb/simple-encryption'
+import SimpleEncryption, { isDatabaseEncrypted } from '@le-space/orbitdb-simple-encryption'
 
 // Try opening database without encryption
 const db = await orbitdb.open(address, {})
