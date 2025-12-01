@@ -36,12 +36,25 @@ const SimpleEncryption = async ({ password }) => {
 }
 
 /**
- * Detects if an OrbitDB database is encrypted by checking if entries exist
- * but their values are undefined (which indicates encrypted data cannot be read).
- * 
+ * Detects if an OrbitDB database is encrypted when it has been opened
+ * **without** any encryption options.
+ *
+ * Detection is based on two behaviors:
+ * - For **data-only encryption**, `db.all()` succeeds but returns entries
+ *   whose `value` is `undefined`, indicating encrypted payloads cannot be read.
+ * - For **replication+data encryption**, calling `db.all()` may throw a
+ *   `TypeError` when OrbitDB tries to read `entry.value` from undecryptable
+ *   entries; this is treated as "encrypted".
+ *
+ * **LIMITATIONS**
+ * - Empty databases return `false` because they are indistinguishable from
+ *   encrypted databases whose log/entries also appear empty.
+ * - This function is intentionally conservative: unexpected errors are treated
+ *   as "not encrypted" to avoid false positives.
+ *
  * @param {Object} db - OrbitDB database instance (opened without encryption options)
  * @returns {Promise<boolean>} - true if database appears to be encrypted, false otherwise
- * 
+ *
  * @example
  * const db = await orbitdb.open(address, {})
  * const isEncrypted = await isDatabaseEncrypted(db)
@@ -51,15 +64,33 @@ const SimpleEncryption = async ({ password }) => {
  */
 const isDatabaseEncrypted = async (db) => {
   try {
-    const all = await db.all()
-    
-    // If database is empty, we can't tell if it's encrypted or just empty
-    if (all.length === 0) {
+    let all
+
+    try {
+      all = await db.all()
+    } catch (error) {
+      const msg = error?.message || ''
+
+      // When opening an encrypted DB without encryption options, OrbitDB may throw
+      // a TypeError like: "Cannot read properties of undefined (reading 'value')"
+      // when trying to access entry.value on an undecryptable entry.
+      if (error instanceof TypeError && /reading 'value'/.test(msg)) {
+        return true
+      }
+
+      // For any other unexpected error, treat as not encrypted to avoid false positives.
       return false
     }
     
-    // If entries exist but values are undefined, database is encrypted
-    // Encrypted databases: entries have hashes but values are undefined
+    // If database is empty, we can't tell if it's encrypted or just empty
+    // This is especially true for replication encryption where log entries
+    // themselves are encrypted, making encrypted DBs appear empty
+    if (all.length === 0) {
+      return false  // Could be empty OR encrypted with replication encryption
+    }
+    
+    // If entries exist but values are undefined, database is encrypted (data-only)
+    // Encrypted databases (data-only): entries have hashes but values are undefined
     // Unencrypted databases: entries have hashes AND readable values
     const hasEntriesWithUndefinedValues = all.every(entry => 
       entry.hash !== undefined && entry.value === undefined
@@ -67,8 +98,8 @@ const isDatabaseEncrypted = async (db) => {
     
     return hasEntriesWithUndefinedValues
   } catch (error) {
-    // If we can't read the database, assume it's not encrypted
-    // (or handle error appropriately)
+    // Any unexpected error reaching here is treated as not encrypted
+    // to avoid misclassifying infrastructure issues as encryption.
     return false
   }
 }

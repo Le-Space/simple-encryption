@@ -439,6 +439,62 @@ describe('Encryption with OrbitDB', function () {
       // This is useful for detection in simple-todo app to show password modal
     })
 
+    // NEW TEST: replication + data encryption detection and reopen
+    it('can detect encrypted database with replication+data encryption and reopen with correct config', async () => {
+      // Create an encrypted database with BOTH replication and data encryption
+      const replicationEnc = await SimpleEncryption({ password: 'replication-password' })
+      const dataEnc = await SimpleEncryption({ password: 'data-password' })
+
+      db1 = await orbitdb1.open('encrypted-both-detection-test', {
+        encryption: {
+          replication: replicationEnc,
+          data: dataEnc
+        }
+      })
+
+      await db1.add('test record 1')
+      await db1.add('test record 2')
+
+      // Verify we can read with encryption
+      strictEqual((await db1.all()).length, 2)
+
+      const dbAddress = db1.address
+      await db1.close()
+      db1 = null
+
+      // Open the same database WITHOUT encryption options
+      db2 = await orbitdb1.open(dbAddress, {})
+
+      // Use isDatabaseEncrypted to detect that this database is encrypted
+      const detectedEncrypted = await isDatabaseEncrypted(db2)
+      strictEqual(
+        detectedEncrypted,
+        true,
+        'Database with replication+data encryption should be detected as encrypted when opened without config'
+      )
+
+      await db2.close()
+      db2 = null
+
+      // Now reopen with the correct encryption configuration
+      const replicationEnc2 = await SimpleEncryption({ password: 'replication-password' })
+      const dataEnc2 = await SimpleEncryption({ password: 'data-password' })
+
+      const encryptionConfig = {
+        encryption: {
+          replication: replicationEnc2,
+          data: dataEnc2
+        }
+      }
+
+      db2 = await orbitdb1.open(dbAddress, encryptionConfig)
+
+      const all = await db2.all()
+      strictEqual(all.length, 2, 'Should read all records after reopening with correct encryption config')
+      strictEqual(all[0].value, 'test record 1')
+      strictEqual(all[1].value, 'test record 2')
+    })
+
     it('isDatabaseEncrypted detects encrypted database correctly', async () => {
       // Test 1: Encrypted database should return true
       const encryption = await SimpleEncryption({ password: 'test-password' })

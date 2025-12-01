@@ -57,6 +57,42 @@ const db = await orbitdb.open(dbAddress, { encryption })
 
 ```
 
+## Detecting Encrypted Databases
+
+The `isDatabaseEncrypted()` function helps detect if a database is encrypted when it has been opened **without** any encryption options. It currently detects encryption in two main ways:
+
+- **Data-only encryption**: `db.all()` succeeds, entries exist, but their `value` fields are `undefined` (while `hash` is present).
+- **Replication and/or data encryption**: `db.all()` throws a `TypeError` such as `Cannot read properties of undefined (reading 'value')` because OrbitDB cannot decrypt the underlying log entries.
+
+```js
+import SimpleEncryption, { isDatabaseEncrypted } from '@orbitdb/simple-encryption'
+
+// Try opening database without encryption
+const db = await orbitdb.open(address, {})
+
+// Check if it's encrypted
+const isEncrypted = await isDatabaseEncrypted(db)
+
+if (isEncrypted) {
+  // Application-specific flow: ask user for password / config
+  const password = await promptForPassword()
+
+  // Depending on how the DB was created, you may need:
+  // - data encryption only
+  // - replication encryption only
+  // - or both
+  const replication = await SimpleEncryption({ password })
+  const data = await SimpleEncryption({ password })
+
+  await db.close()
+
+  // Example: open with both replication and data encryption
+  const encryptedDb = await orbitdb.open(address, {
+    encryption: { replication, data }
+  })
+}
+```
+
 ## Contributing
 
 **Take a look at our organization-wide [Contributing Guide](https://github.com/orbitdb/welcome/blob/master/contributing.md).** You'll find most of your questions answered there. Some questions may be answered in the [FAQ](FAQ.md), as well.
